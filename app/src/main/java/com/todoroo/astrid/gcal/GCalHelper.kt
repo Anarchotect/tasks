@@ -136,17 +136,24 @@ class GCalHelper @Inject constructor(
 
     private fun createStartAndEndDate(task: Task, values: ContentValues) {
         val dueDate = task.dueDate
-        if (task.hasDueDate()) {
+        val durationMs = when {
+            task.elapsedSeconds > 0 -> task.elapsedSeconds * 1000L
+            task.estimatedSeconds > 0 -> task.estimatedSeconds * 1000L
+            else -> DEFAULT_CAL_TIME
+        }
+        if (task.isCompleted) {
+            val completionDate = task.completionDate
+            values.put(CalendarContract.Events.DTSTART, completionDate - durationMs)
+            values.put(CalendarContract.Events.DTEND, completionDate)
+            values.put(CalendarContract.Events.ALL_DAY, "0")
+            values.put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
+        } else if (task.hasDueDate()) {
             if (task.hasDueTime()) {
-                var estimatedTime = task.estimatedSeconds * 1000.toLong()
-                if (estimatedTime <= 0) {
-                    estimatedTime = DEFAULT_CAL_TIME
-                }
                 if (preferences.getBoolean(R.string.p_end_at_deadline, true)) {
                     values.put(CalendarContract.Events.DTSTART, dueDate)
-                    values.put(CalendarContract.Events.DTEND, dueDate + estimatedTime)
+                    values.put(CalendarContract.Events.DTEND, dueDate + durationMs)
                 } else {
-                    values.put(CalendarContract.Events.DTSTART, dueDate - estimatedTime)
+                    values.put(CalendarContract.Events.DTSTART, dueDate - durationMs)
                     values.put(CalendarContract.Events.DTEND, dueDate)
                 }
                 values.put(CalendarContract.Events.ALL_DAY, "0")
@@ -161,7 +168,6 @@ class GCalHelper @Inject constructor(
         } else {
             Timber.w("Not creating calendar event, task has no due date: %s", task)
         }
-
     }
 
     companion object {
